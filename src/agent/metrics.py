@@ -37,8 +37,12 @@ def _segments_for(region, job, day_type, band):
     ]
 
 
-def compute_metrics(db_path):
-    """반환: {(axis, value, period): {지표·건수 dict}}"""
+def load_data(db_path):
+    """DB → (공고 리스트, 지원 이벤트 리스트). 이벤트는 지원 1건당 1개, 매칭 결과 포함.
+
+    이벤트를 원시 형태로 들고 있는 이유: 심각도 판정 단계에서 '이 세그먼트의 악화가
+    다른 축의 구성비 변화로 설명되는가'(표준화 검사)를 하려면 재집계가 필요하다.
+    """
     conn = sqlite3.connect(db_path)
     rows = conn.execute("""
         SELECT p.region, p.job_category, p.posted_at,
@@ -48,9 +52,34 @@ def compute_metrics(db_path):
         JOIN postings p ON p.id = a.posting_id
         LEFT JOIN matches m ON m.application_id = a.id
     """).fetchall()
-    postings = conn.execute("SELECT region, job_category, posted_at FROM postings").fetchall()
+    posting_rows = conn.execute("SELECT region, job_category, posted_at FROM postings").fetchall()
     conn.close()
 
+    postings = []
+    for region, job, posted_at in posting_rows:
+        dt = datetime.fromisoformat(posted_at)
+        postings.append({"region": region, "job": job,
+                         "day_type": _day_type(dt), "period": _period(dt)})
+
+    events = []
+    for region, job, posted_at, worker, applied_at, km, matched_at, no_show in rows:
+        posted_dt = datetime.fromisoformat(posted_at)
+        matched = matched_at is not None
+        within_1h = False
+        if matched:
+            delay_min = (datetime.fromisoformat(matched_at)
+                         - datetime.fromisoformat(applied_at)).total_seconds() / 60.0
+            within_1h = delay_min <= MATCH_1H_MINUTES
+        events.append({"region": region, "job": job,
+                       "day_type": _day_type(posted_dt), "period": _period(posted_dt),
+                       "band": contract.distance_band(km), "worker": worker,
+                       "matched": matched, "within_1h": within_1h,
+                       "no_show": bool(no_show) if matched else False})
+    return postings, events
+
+
+def compute_metrics(postings, events):
+    """반환: {(axis, value, period): {지표·건수 dict}}"""
     acc = defaultdict(lambda: {"postings": 0, "applications": 0, "matches": 0,
                                "match_1h": 0, "noshow": 0})
     # 재이용률용: 세그먼트·기간별 worker 매칭 횟수. 사람 단위 지표라
@@ -58,30 +87,23 @@ def compute_metrics(db_path):
     rehire_axes = {"overall", contract.AXIS_REGION, contract.AXIS_JOB}
     worker_matches = defaultdict(lambda: defaultdict(int))
 
-    for region, job, posted_at, _ in [(r, j, t, None) for r, j, t in postings]:
-        dt = datetime.fromisoformat(posted_at)
-        for axis, value in _segments_for(region, job, _day_type(dt), None):
+    for p in postings:
+        for axis, value in _segments_for(p["region"], p["job"], p["day_type"], None):
             if axis != contract.AXIS_DISTANCE:  # 거리 구간은 지원 이전엔 정의되지 않는다
-                acc[(axis, value, _period(dt))]["postings"] += 1
+                acc[(axis, value, p["period"])]["postings"] += 1
 
-    for region, job, posted_at, worker, applied_at, km, matched_at, no_show in rows:
-        posted_dt = datetime.fromisoformat(posted_at)
-        period = _period(posted_dt)
-        day_type = _day_type(posted_dt)
-        band = contract.distance_band(km)
-        for axis, value in _segments_for(region, job, day_type, band):
-            a = acc[(axis, value, period)]
+    for e in events:
+        for axis, value in _segments_for(e["region"], e["job"], e["day_type"], e["band"]):
+            a = acc[(axis, value, e["period"])]
             a["applications"] += 1
-            if matched_at is not None:
+            if e["matched"]:
                 a["matches"] += 1
-                delay_min = (datetime.fromisoformat(matched_at)
-                             - datetime.fromisoformat(applied_at)).total_seconds() / 60.0
-                if delay_min <= MATCH_1H_MINUTES:
+                if e["within_1h"]:
                     a["match_1h"] += 1
-                if no_show:
+                if e["no_show"]:
                     a["noshow"] += 1
                 if axis in rehire_axes:
-                    worker_matches[(axis, value, period)][worker] += 1
+                    worker_matches[(axis, value, e["period"])][e["worker"]] += 1
 
     # 건수 → 비율 지표. 분모가 0이면 지표는 None (후속 규칙에서 제외됨)
     out = {}
@@ -95,18 +117,26 @@ def compute_metrics(db_path):
             matched_workers = len(wm)
             repeaters = sum(1 for c in wm.values() if c >= 2)
             m["matched_workers"] = matched_workers
+            m["repeaters"] = repeaters
             m[contract.METRIC_REHIRE] = repeaters / matched_workers
         else:
             m["matched_workers"] = 0
+            m["repeaters"] = 0
             m[contract.METRIC_REHIRE] = None
         out[key] = m
     return out
 
 
-# 지표별 표본 크기(최소 표본 필터·영향 규모 산정에 쓰는 분모)가 무엇인지의 매핑
+# 지표별 분모(최소 표본 필터·영향 규모 산정)와 분자(유의성 검정용 성공 횟수) 필드 매핑
 DENOM_FIELD = {
     contract.METRIC_CONVERSION: "applications",
     contract.METRIC_MATCH_1H: "matches",
     contract.METRIC_NOSHOW: "matches",
     contract.METRIC_REHIRE: "matched_workers",
+}
+NUM_FIELD = {
+    contract.METRIC_CONVERSION: "matches",
+    contract.METRIC_MATCH_1H: "match_1h",
+    contract.METRIC_NOSHOW: "noshow",
+    contract.METRIC_REHIRE: "repeaters",
 }
