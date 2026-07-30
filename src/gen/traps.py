@@ -15,7 +15,9 @@ from src.gen.generate import BaseMods
 # ── 표면 개선 스토리 (current 전체): "매칭 반경 완화 + 매칭 시스템 개선" ──
 SURFACE_DELAY_FACTOR = 0.85    # 매칭 지연 -15% → 전체 1시간 내 매칭률 개선
 SURFACE_FILL_FACTOR = 1.08     # 채용 성사 +8% → 전체 매칭 수 증가
-SURFACE_NOSHOW_DROP = 0.01     # 근거리 노쇼 소폭 개선 (리마인더 알림 개선 가정)
+SURFACE_NOSHOW_DROP = 0.02     # 근거리 노쇼 소폭 개선 (리마인더 알림 개선 가정)
+# ↑ 0.01 → 0.02 보정 (2026-07-30): 0.01로는 T1 누출로 전체 노쇼율이 +2.8pp 올라
+#   "집계는 멀쩡해 보인다"는 함정 전제가 깨졌다. FAILURES.md 참고.
 
 # ── T1 (primary): 반경 완화로 원거리 매칭이 늘었는데 그 구간 노쇼가 곪는다 ──
 T1_BAND_WEIGHTS_CURRENT = {"0-1km": 0.40, "1-3km": 0.31, "3-5km": 0.15, "5km+": 0.14}
