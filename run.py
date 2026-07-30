@@ -3,6 +3,7 @@
   python3 run.py                  # 시드 42로 한 번 실행
   python3 run.py --seed 7         # 다른 시드로 실행
   python3 run.py --eval-seeds 5   # 시드 42~46 반복 채점 → 정탐률/오탐률 집계
+  python3 run.py --clean-seeds 5  # 함정 없는 데이터로 참음성 확인 (헛제안 0이어야 정상)
 
 채점(score.py)은 별도 프로세스로 호출한다 — 탐지와 채점의 독립성을 실행 구조로도 유지.
 """
@@ -53,7 +54,28 @@ def main():
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--eval-seeds", type=int, default=0,
                     help="N개 시드(--seed부터 연속)로 반복 채점해 정탐률/오탐률을 집계")
+    ap.add_argument("--clean-seeds", type=int, default=0,
+                    help="함정 없는 베이스 데이터 N개 시드로 참음성 확인 — 헛제안이 0이어야 한다")
     args = ap.parse_args()
+
+    if args.clean_seeds:
+        # ── 참음성 검사: 함정을 안 심었으면 아무것도 제안하지 않아야 한다 ──
+        os.makedirs(os.path.join(ROOT, "data"), exist_ok=True)
+        db = os.path.join(ROOT, "data", "clean_check.db")
+        fp = 0
+        for seed in range(args.seed, args.seed + args.clean_seeds):
+            generate(db, seed)  # mods 없음 = 함정 없음
+            postings, events = load_data(db)
+            winner, _ = select_one(scan(compute_metrics(postings, events)), events)
+            if winner is None:
+                print(f"seed {seed}: 무제안 (정상)")
+            else:
+                fp += 1
+                print(f"seed {seed}: 헛제안! {winner['axis']}={winner['value']} "
+                      f"{winner['metric']} {winner['baseline']:.3f}→{winner['current']:.3f}")
+        print(f"\n[집계] 클린 데이터 {args.clean_seeds}개 시드 — 헛제안 {fp}건"
+              + (" (오탐 통제 정상)" if fp == 0 else " (오탐 통제 실패!)"))
+        return
 
     if not args.eval_seeds:
         os.makedirs(os.path.join(ROOT, "data"), exist_ok=True)
