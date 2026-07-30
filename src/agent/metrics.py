@@ -1,6 +1,6 @@
 """탐지기 1단계: SQLite → 세그먼트×기간별 지표 집계. 전부 결정론적 코드.
 
-입력은 data/funnel.db 하나뿐이다. (answers/, src/gen/ 참조 금지 — score.py가 검사)
+입력은 data/funnel.db 하나뿐이다. 정답 파일·생성기 쪽 코드는 참조 금지 — score.py가 정적 검사한다.
 
 귀속 규칙: 모든 이벤트(지원·매칭)는 '공고 코호트'로 귀속한다.
 즉 기간(baseline/current)과 요일(평일/주말)은 공고의 posted_at 기준이다.
