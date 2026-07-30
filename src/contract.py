@@ -19,6 +19,11 @@ AXIS_WEEKDAY = "day_type"            # 평일/주말
 AXIS_DISTANCE = "distance_band"      # 지원자-공고 거리 구간
 AXIS_JOB_DAYTYPE = "job_category+day_type"  # 2차원 조합축
 
+
+def job_daytype_value(job, day_type):
+    """2차원 축의 세그먼트 값 표기. 정답과 제안이 같은 표기를 써야 채점이 성립한다."""
+    return f"{job}+{day_type}"
+
 REGIONS = ["서현동", "정자동", "야탑동", "이매동", "수내동",
            "금곡동", "구미동", "판교동", "백현동", "운중동"]
 JOBS = ["서빙", "주방", "물류", "청소", "매장관리", "배달"]
