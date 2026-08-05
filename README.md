@@ -4,7 +4,7 @@
 동네 기반 구인구직 매칭 퍼널(공고 → 지원 → 매칭)의 합성 데이터 위에서 동작한다.
 
 ```
-python3 run.py # 생성 → 탐지 → 채점 한 방 (파이썬 표준 라이브러리만, 설치 불필요)
+python3 run.py  # 생성 → 탐지 → 채점 한 방 (파이썬 표준 라이브러리만, 설치 불필요)
 ```
 
 
@@ -113,9 +113,9 @@ LLM은 규칙 설계 단계에만 개입했고, 그 추론과 실패는 `DECISIO
 ## 재현
 
 ```
-python3 run.py # 생성 → 탐지 → 채점 한 방 (시드 42)
-python3 run.py --eval-seeds 5 # 시드 5개 반복 채점 → 정탐률·오탐률 집계
-python3 run.py --clean-seeds 5 # 함정 없는 데이터 참음성 확인 (헛제안 0이어야 정상)
+python3 run.py                  # 생성 → 탐지 → 채점 한 방 (시드 42)
+python3 run.py --eval-seeds 5   # 시드 5개 반복 채점 → 정탐률·오탐률 집계
+python3 run.py --clean-seeds 5  # 함정 없는 데이터 참음성 확인 (헛제안 0이어야 정상)
 ```
 
 
@@ -126,15 +126,15 @@ python3 run.py --clean-seeds 5 # 함정 없는 데이터 참음성 확인 (헛�
 ## 구조
 
 ```
-run.py # 원커맨드 실행기
-score.py # 독립 채점기 (answers/를 읽는 유일한 소비자 + 격리 가드)
-src/contract.py # 이름 계약 (축·지표 어휘만, 함정 정보 없음)
-src/gen/generate.py # 기간 대칭 베이스 데이터 생성
-src/gen/traps.py # 함정 주입 + 정답 기록
-src/agent/metrics.py # 세그먼트 × 기간 지표 집계
-src/agent/rules.py # 괴리 스캔 (임계값 + BH 유의성)
-src/agent/severity.py # 심각도 점수 · 중복 제거 · 최종 1개 선택
-src/agent/report.py # proposal.json + report.md 생성
+run.py                 # 원커맨드 실행기
+score.py               # 독립 채점기 (answers/를 읽는 유일한 소비자 + 격리 가드)
+src/contract.py        # 이름 계약 (축·지표 어휘만, 함정 정보 없음)
+src/gen/generate.py    # 기간 대칭 베이스 데이터 생성
+src/gen/traps.py       # 함정 주입 + 정답 기록
+src/agent/metrics.py   # 세그먼트 × 기간 지표 집계
+src/agent/rules.py     # 괴리 스캔 (임계값 + BH 유의성)
+src/agent/severity.py  # 심각도 점수 · 중복 제거 · 최종 1개 선택
+src/agent/report.py    # proposal.json + report.md 생성
 ```
 
 
